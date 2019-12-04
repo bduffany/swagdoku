@@ -1,0 +1,86 @@
+:host {
+  --fast-timing-curve: cubic-bezier(0.4, 0, 0.2, 1);
+
+  --grid-color: black;
+  --cell-color: white;
+  --text-color: black;
+}
+
+.title {
+  padding: 8px;
+  text-align: center;
+}
+
+.grid-area {
+  display: flex;
+  padding: 16px;
+  align-items: center;
+  justify-content: center;
+  background: #eee;
+}
+
+.grid {
+  background-color: var(--grid-color);
+  padding: 2px;
+  display: inline-block;
+}
+
+.cell:nth-child(3),
+.cell:nth-child(6) {
+  margin-right: 2px;
+}
+
+.row:nth-child(3),
+.row:nth-child(6) {
+  margin-bottom: 1px;
+}
+
+.cell {
+  background-color: var(--cell-color);
+  color: transparent;
+  text-shadow: 0 0 0 var(--text-color);
+
+  width: 48px;
+  height: 48px;
+ 
+  margin: 1px;
+  border: none;
+
+  text-align: center;
+  font-size: 24px;
+  cursor: pointer;
+
+  transition: transform 120ms var(--fast-timing-curve);
+}
+
+.cell:focus {
+  transform: scale(1.2);
+  border-radius: 4px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.41);
+  border: 1px solid orange;
+  box-sizing: border-box;
+  outline: none;
+}
+
+.settings-section {
+  padding: 8px;
+}
+
+.setting-label {
+  height: 44px;
+  display: flex;
+  align-items: center;
+}
+
+.setting-label-text {
+  margin-left: 8px;
+}
+
+.subgrid {
+  display: grid;
+}
+
+.subgrid-cell {
+  width: 16px;
+  height: 16px;
+}

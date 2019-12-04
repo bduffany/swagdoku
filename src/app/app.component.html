@@ -1,0 +1,41 @@
+
+<div class="title">
+  Swagdoku
+</div>
+
+<div class="grid-area">
+  <div class="grid">
+    <div class="row" *ngFor="let row of board; index as i;">
+      <input *ngFor="let number of row; index as j;"
+            type="text"
+            class="cell row-{{i}} col-{{j}}"
+            [value]="number || ''"
+            (keypress)="handleKeyPress($event)"
+            (keydown)="handleKeyDown($event)" />
+    </div>
+  </div>
+</div>
+
+<div class="settings-section">
+  <div class="settings-group"
+       *ngFor="let group of settingsGroups">
+    <div class="settings-group-title">
+      {{group.name}}
+    </div>
+    <div>
+      <ul>
+        <li *ngFor="let setting of group.settings">
+          <label class="setting-label">
+            <input class="setting-checkbox"
+                   type="checkbox"
+                   [(checked)]="setting.isEnabled"
+                   (change)="handleSettingChange(setting.id)" />
+            <span class="setting-label-text">
+              {{setting.label}}
+            </span>
+          </label>
+        </li>
+      </ul>
+    </div>
+  </div>
+</div>
