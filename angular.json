@@ -58,18 +58,18 @@
         "serve": {
           "builder": "@angular-devkit/build-angular:dev-server",
           "options": {
-            "browserTarget": "swagdoku-new:build"
+            "browserTarget": "swagdoku:build"
           },
           "configurations": {
             "production": {
-              "browserTarget": "swagdoku-new:build:production"
+              "browserTarget": "swagdoku:build:production"
             }
           }
         },
         "extract-i18n": {
           "builder": "@angular-devkit/build-angular:extract-i18n",
           "options": {
-            "browserTarget": "swagdoku-new:build"
+            "browserTarget": "swagdoku:build"
           }
         },
         "test": {
@@ -99,16 +99,16 @@
           "builder": "@angular-devkit/build-angular:protractor",
           "options": {
             "protractorConfig": "e2e/protractor.conf.js",
-            "devServerTarget": "swagdoku-new:serve"
+            "devServerTarget": "swagdoku:serve"
           },
           "configurations": {
             "production": {
-              "devServerTarget": "swagdoku-new:serve:production"
+              "devServerTarget": "swagdoku:serve:production"
             }
           }
         }
       }
     }
   },
-  "defaultProject": "swagdoku-new"
+  "defaultProject": "swagdoku"
 }
