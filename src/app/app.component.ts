@@ -15,9 +15,17 @@ const board = [
   [6, 0, 0, 0, 7, 8, 0, 0, 2],
 ];
 
+const DIGITS = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+
 enum SettingId {
   AUTO_FILL_PENCIL_MARKS,
   AUTO_APPLY_MASTERED_TECHNIQUES,
+
+  MASTERED_FULL_HOUSE,
+}
+
+function filledArray(value: any = 0, length = 9) {
+  return Array(length).fill(value, 0, length);
 }
 
 const settingsGroups: Array<SettingsGroup> = [
@@ -40,7 +48,7 @@ const settingsGroups: Array<SettingsGroup> = [
     name: 'Mastered techniques (easy)',
     settings: [
       {
-        id: 'full-house',
+        id: SettingId.MASTERED_FULL_HOUSE,
         label: 'Full house',
         isEnabled: true,
       }
@@ -66,39 +74,79 @@ interface SettingsGroup {
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AppComponent  {
-  private board: Array<Array<number>>;
-  private settingsGroups: Array<SettingsGroup>;
+  private board: Array<Array<number>> = board;
+  private pencilMarks: Array<Array<Array<number>>>;
+  private settingsGroups: Array<SettingsGroup> = settingsGroups;
+  private digits: Array<number> = DIGITS;
 
   constructor() {
-    this.board = board;
-    this.settingsGroups = settingsGroups;
+    this.pencilMarks = filledArray()
+        .map(_ => filledArray()
+            .map(_ => filledArray(false)));
   }
 
   handleKeyDown(e: KeyboardEvent) {
-    const input = e.target as HTMLInputElement;
+    const cell = e.target as HTMLDivElement;
     const key = e.which;
-    console.log(`Keydown: ${key}`);
+    const shift = e.shiftKey;
+    console.log(`Keydown: ${key}; shift=${shift}`);
+    e.preventDefault();
+
+    // TODO: commit to stack of actions (support UNDO / REDO)
 
     if (key === 8 // backspace
         || key === 46 // delete
+        || key === 32 // space
+        || key === 48 // 0
         ) {
-      input.value = '';
-    }
-  }
-
-  handleKeyPress(e: KeyboardEvent) {
-    e.preventDefault();
-    const input = e.target as HTMLInputElement;
-    const key = e.which;
-    console.log(`Keypress: ${key}`);
-
-    if (key === 32) { // space
-      input.value = '';
+      this.clearCell(cell);
       return;
     }
     const number = key - 48; // 0
-    if (number >= 1 && number <= 9) {
-      input.value = String(number);
+    if (number < 1 || number > 9) {
+      return;
+    }
+
+    if (shift) {
+      this.togglePencilMark(cell, number);
+    } else {
+      this.setValue(cell, number);
     }
   }
+
+  togglePencilMark(cell, number) {
+    const value = cell.querySelector('.value');
+    value.classList.add('hidden');
+    const pencilMarks = cell.querySelector('.pencil-marks');
+    pencilMarks.classList.remove('hidden');
+    const pencilMark =
+        pencilMarks.querySelector(`.pencil-mark-${number}`);
+    toggleClass('hidden', pencilMark);
+  }
+
+  clearCell(cell) {
+    const pencilMarks = cell.querySelectorAll('.pencil-mark');
+    pencilMarks.forEach(hide);
+    const value = cell.querySelector('.value');
+    value.innerHTML = '';
+  }
+
+  setValue(cell: HTMLElement, number: number) {
+    const pencilMarks = cell.querySelector('.pencil-marks');
+    hide(pencilMarks);
+    const value = cell.querySelector('.value');
+    value.innerHTML = String(number);
+  }
+}
+
+function toggleClass(className: string, element: HTMLElement) {
+  if (element.classList.contains(className)) {
+    element.classList.remove(className);
+  } else {
+    element.classList.add(className);
+  }
+}
+
+function hide(element: Element) {
+  element.classList.add('hidden');
 }
