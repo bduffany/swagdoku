@@ -6,12 +6,21 @@
 <div class="grid-area">
   <div class="grid">
     <div class="row" *ngFor="let row of board; index as i;">
-      <input *ngFor="let number of row; index as j;"
-            type="text"
+      <div *ngFor="let number of row; index as j;"
             class="cell row-{{i}} col-{{j}}"
-            [value]="number || ''"
+            [attr.data-row]="i"
+            [attr.data-col]="j"
+            tabindex="0"
             (keypress)="handleKeyPress($event)"
-            (keydown)="handleKeyDown($event)" />
+            (keydown)="handleKeyDown($event)">
+        <span class="value">{{number || '&nbsp;'}}</span>
+        <span class="hidden pencil-marks">
+          <span *ngFor="let digit of digits"
+               class="hidden pencil-mark pencil-mark-{{digit}}">
+            {{digit}}
+          </span>
+        </span>
+      </div>
     </div>
   </div>
 </div>
