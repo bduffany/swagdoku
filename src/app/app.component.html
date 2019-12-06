@@ -1,24 +1,30 @@
-
 <div class="title">
   Swagdoku
 </div>
 
 <div class="grid-area">
   <div class="grid">
-    <div class="row" *ngFor="let row of board; index as i;">
-      <div *ngFor="let number of row; index as j;"
-            class="cell row-{{i}} col-{{j}}"
-            [attr.data-row]="i"
-            [attr.data-col]="j"
-            tabindex="0"
-            (keypress)="handleKeyPress($event)"
-            (keydown)="handleKeyDown($event)">
-        <span class="value">{{number || '&nbsp;'}}</span>
-        <span class="hidden pencil-marks">
-          <span *ngFor="let digit of digits"
-               class="hidden pencil-mark pencil-mark-{{digit}}">
-            {{digit}}
-          </span>
+    <div class="row" *ngFor="let row of board; index as i">
+      <div
+        *ngFor="
+          let number of row;
+          index as j;
+          trackBy: disableChangeDetectionTrackBy
+        "
+        class="cell row-{{ i }} col-{{ j }}"
+        [attr.data-row]="i"
+        [attr.data-col]="j"
+        tabindex="0"
+        (keypress)="handleKeyPress($event)"
+        (keydown)="handleKeyDown($event)"
+      >
+        <span class="value">{{ number || "&nbsp;" }}</span>
+        <span class="pencil-marks hidden">
+          <span
+            *ngFor="let digit of digits"
+            class="hidden pencil-mark pencil-mark-{{ digit }}"
+            >{{ digit }}</span
+          >
         </span>
       </div>
     </div>
@@ -26,21 +32,22 @@
 </div>
 
 <div class="settings-section">
-  <div class="settings-group"
-       *ngFor="let group of settingsGroups">
+  <div class="settings-group" *ngFor="let group of settingsGroups">
     <div class="settings-group-title">
-      {{group.name}}
+      {{ group.name }}
     </div>
     <div>
       <ul>
         <li *ngFor="let setting of group.settings">
           <label class="setting-label">
-            <input class="setting-checkbox"
-                   type="checkbox"
-                   [(checked)]="setting.isEnabled"
-                   (change)="handleSettingChange(setting.id)" />
+            <input
+              class="setting-checkbox"
+              type="checkbox"
+              [(checked)]="setting.isEnabled"
+              (change)="handleSettingChange(setting.id)"
+            />
             <span class="setting-label-text">
-              {{setting.label}}
+              {{ setting.label }}
             </span>
           </label>
         </li>
