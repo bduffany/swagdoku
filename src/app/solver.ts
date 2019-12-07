@@ -1,6 +1,6 @@
 import { Action, ActionType } from "./action";
 import { INDICES, DIGITS } from "./constants";
-import { range, simpleEnumValues } from "./utils";
+import { range, relativeRange, simpleEnumValues } from "./utils";
 import { BoardState } from "./state";
 
 export enum StrategyId {
@@ -11,9 +11,21 @@ export enum StrategyId {
 
 type Strategy = (state: BoardState) => Action | undefined;
 
-function getBox(i: number, j: number, array: Array<Array<any>>) {
+function getBoxByRowCol<T>(
+  i: number,
+  j: number,
+  array: Array<Array<T>>
+): Array<T> {
   const boxRow = Math.floor(i / 3);
   const boxCol = Math.floor(j / 3);
+  return getBox(boxRow, boxCol, array);
+}
+
+function getBox<T>(
+  boxRow: number,
+  boxCol: number,
+  array: Array<Array<T>>
+): Array<T> {
   const box = [];
   for (let ii = 0; ii < 3; ii++) {
     for (let jj = 0; jj < 3; jj++) {
@@ -23,11 +35,22 @@ function getBox(i: number, j: number, array: Array<Array<any>>) {
   return box;
 }
 
-function getRow(i: number, array: Array<Array<any>>) {
+function* boxRowColumns(
+  boxRow: number,
+  boxCol: number
+): Iterable<Array<number>> {
+  for (const row of relativeRange(boxRow * 3, 3)) {
+    for (const col of relativeRange(boxCol * 3, 3)) {
+      yield [row, col];
+    }
+  }
+}
+
+function getRow<T>(i: number, array: Array<Array<T>>): Array<T> {
   return array[i];
 }
 
-function getCol(j: number, array: Array<Array<any>>) {
+function getCol<T>(j: number, array: Array<Array<T>>): Array<T> {
   const col = [];
   for (const row of INDICES) {
     col.push(array[row][j]);
@@ -35,8 +58,22 @@ function getCol(j: number, array: Array<Array<any>>) {
   return col;
 }
 
-function includesDigit(digit: number) {
-  return array => array.includes(digit);
+function eliminate(digit: number, candidates: Array<number>): Array<number> {
+  return candidates.filter(candidate => candidate !== digit);
+}
+
+function* rowIndicesExcludingBox(boxRow: number) {
+  for (const i of INDICES) {
+    if (Math.floor(i / 3) === boxRow) {
+      continue;
+    }
+    yield i;
+  }
+}
+
+function colIndicesExcludingBox(boxCol: number) {
+  // Same implementation.
+  return rowIndicesExcludingBox(boxCol);
 }
 
 interface StrategyIndex {
@@ -59,9 +96,9 @@ const STRATEGY_IMPLS: StrategyIndex = {
           const houses = [
             getRow(i, board),
             getCol(j, board),
-            getBox(i, j, board)
+            getBoxByRowCol(i, j, board)
           ];
-          if (!houses.some(includesDigit(candidate))) {
+          if (!houses.some(house => house.includes(candidate))) {
             marks.push(candidate);
           }
         }
@@ -87,12 +124,68 @@ const STRATEGY_IMPLS: StrategyIndex = {
         }
       }
     }
+  },
+  // TODO: HIDDEN_SINGLE
+  [StrategyId.LOCKED_CANDIDATE]: ({
+    board,
+    marks
+  }: BoardState): Action | undefined => {
+    for (const boxRow of range(3)) {
+      for (const boxCol of range(3)) {
+        const boxValues = getBox(boxRow, boxCol, board);
+        for (const digit of DIGITS) {
+          if (boxValues.includes(digit)) continue;
+
+          // Check if digit is locked to a single row or col.
+          const candidateMarkRows = new Set<number>();
+          const candidateMarkCols = new Set<number>();
+
+          for (const [row, col] of boxRowColumns(boxRow, boxCol)) {
+            if (marks[row][col].includes(digit)) {
+              candidateMarkRows.add(row);
+              candidateMarkCols.add(col);
+            }
+          }
+
+          const eliminations = [];
+          if (candidateMarkRows.size === 1) {
+            const [row] = candidateMarkRows;
+            for (const col of colIndicesExcludingBox(boxCol)) {
+              const marksToEliminateFrom = marks[row][col];
+              if (marksToEliminateFrom.includes(digit)) {
+                eliminations.push({
+                  type: ActionType.SET_PENCIL_MARKS,
+                  value: eliminate(digit, marksToEliminateFrom),
+                  row,
+                  col
+                });
+              }
+            }
+          } else if (candidateMarkCols.size === 1) {
+            const [col] = candidateMarkRows;
+            for (const row of rowIndicesExcludingBox(boxRow)) {
+              const marksToEliminateFrom = marks[row][col];
+              if (marksToEliminateFrom.includes(digit)) {
+                eliminations.push({
+                  type: ActionType.SET_PENCIL_MARKS,
+                  value: eliminate(digit, marksToEliminateFrom),
+                  row,
+                  col
+                });
+              }
+            }
+          }
+        }
+      }
+    }
+    return undefined;
   }
+
   /* TEMPLATE:
   [StrategyId.FOO]: ({
     board,
     marks
-  }: BoardState): Action | undefined => {};
+  }: BoardState): Action | undefined => {},
   */
 };
 

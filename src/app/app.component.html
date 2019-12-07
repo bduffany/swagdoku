@@ -26,6 +26,17 @@
       </div>
     </div>
   </div>
+
+  <div class="digit-controls">
+    <button
+      (focus)="clickDigitControl($event)"
+      (blur)="(unclickDigitControl)"
+      class="digit-control"
+      *ngFor="let digit of digits"
+    >
+      {{ digit }}
+    </button>
+  </div>
 </div>
 
 <div class="settings-section">

@@ -7,8 +7,9 @@ import {
 } from "@angular/core";
 
 import { Action, ActionType } from "./action";
-import { DIGITS } from "./constants";
+import { DIGITS, INDICES } from "./constants";
 import { Solver } from "./solver";
+import { delay, range, relativeRange } from "./utils";
 
 // TODO: load from API?
 const board = [
@@ -103,7 +104,35 @@ export class AppComponent implements AfterViewInit {
     this.solveFull();
   }
 
-  solveFull() {
+  clickDigitControl(event: MouseEvent) {
+    const clickedDigitElement = event.target as Element;
+    const digit = Number(clickedDigitElement.textContent);
+    console.log(`Clicked ${digit}`);
+    this.setHighlightedDigit(digit);
+  }
+
+  unclickDigitControl() {
+    this.setHighlightedDigit(0);
+  }
+
+  setHighlightedDigit(value: number) {
+    for (const digit of DIGITS) {
+      const pencilMarks = document.querySelectorAll(`.pencil-mark-${digit}`);
+      for (const pencilMark of Array.from(pencilMarks)) {
+        if (
+          pencilMark.textContent === String(value) &&
+          !pencilMark.classList.contains("hidden")
+        ) {
+          pencilMark.classList.add("highlighted");
+        } else {
+          pencilMark.classList.remove("highlighted");
+        }
+      }
+      const cells = document.querySelector(".cell.value");
+    }
+  }
+
+  async solveFull() {
     while (true) {
       const action = this.solver.getNextAction({
         board: this.board,
@@ -113,9 +142,7 @@ export class AppComponent implements AfterViewInit {
         return;
       }
       this.pushAction(action);
-      if (this.actions.length === 2) {
-        throw "WTF!!!";
-      }
+      await delay(1000);
     }
   }
 
@@ -149,11 +176,13 @@ export class AppComponent implements AfterViewInit {
     }
   }
 
+  getCell(row, col) {
+    return this.root.querySelector(`.cell.row-${row}.col-${col}`);
+  }
+
   doAction(action: Action) {
     const { row, col } = action;
-    const cell =
-      action.cell ||
-      this.root.querySelector(`.cell.row-${action.row}.col-${action.col}`);
+    const cell = action.cell || this.getCell(row, col);
     switch (action.type) {
       case ActionType.SET_VALUE:
       case ActionType.CLEAR_VALUE:
@@ -161,6 +190,9 @@ export class AppComponent implements AfterViewInit {
         this.board[row][col] = value;
         this.pencilMarks[row][col] = [];
         this.renderValue(cell, value);
+        if (value) {
+          this.eliminatePencilMarks(row, col, value);
+        }
         break;
       case ActionType.SET_PENCIL_MARKS:
         const marks = (action.value as Array<number>).sort();
@@ -169,6 +201,29 @@ export class AppComponent implements AfterViewInit {
         this.renderPencilMarks(cell, marks);
         break;
     }
+  }
+
+  eliminatePencilMarks(row: number, col: number, digit: number) {
+    const boxRow = Math.floor(row / 3);
+    const boxCol = Math.floor(col / 3);
+    for (const row of relativeRange(boxRow * 3, 3)) {
+      for (const col of relativeRange(boxCol * 3, 3)) {
+        this.eliminatePencilMark(row, col, digit);
+      }
+    }
+    for (const row of INDICES) {
+      this.eliminatePencilMark(row, col, digit);
+    }
+    for (const col of INDICES) {
+      this.eliminatePencilMark(row, col, digit);
+    }
+  }
+
+  eliminatePencilMark(row: number, col: number, digit: number) {
+    const marks = this.pencilMarks[row][col];
+    if (!marks.length || !marks.includes(digit)) return;
+    this.pencilMarks[row][col] = marks.filter(value => value != digit);
+    this.renderPencilMarks(this.getCell(row, col), this.pencilMarks[row][col]);
   }
 
   undoAction(action) {

@@ -5,6 +5,8 @@
   --cell-color: white;
   --given-cell-color: #eee;
   --text-color: black;
+  --highlighted-pencil-mark-background-color: orange;
+  --highlighted-pencil-mark-text-color: white;
 }
 
 .title {
@@ -12,8 +14,27 @@
   text-align: center;
 }
 
+.digit-controls {
+  margin-top: 24px;
+}
+
+.digit-control {
+  width: 48px;
+  height: 48px;
+  margin: 1px;
+  border: 0;
+  border-radius: 24px;
+}
+
+.digit-control:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px orange, 0 1px 3px rgba(0, 0, 0, 0.41);
+  z-index: 1;
+}
+
 .grid-area {
   display: flex;
+  flex-direction: column;
   padding: 16px;
   align-items: center;
   justify-content: center;
@@ -64,6 +85,17 @@
   display: block;
   width: 48px;
   font-size: 11px;
+}
+
+.pencil-mark {
+  display: flex;
+  align-items: center;
+}
+
+.pencil-mark.highlighted {
+  background-color: var(--highlighted-pencil-mark-background-color);
+  color: var(--highlighted-pencil-mark-text-color);
+  border-radius: 8px;
 }
 
 .cell:not(:last-child) {
