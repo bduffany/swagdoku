@@ -2,8 +2,13 @@ import {
   Component,
   ChangeDetectionStrategy,
   ElementRef,
-  ChangeDetectorRef
+  ChangeDetectorRef,
+  AfterViewInit
 } from "@angular/core";
+
+import { Action, ActionType } from "./action";
+import { DIGITS } from "./constants";
+import { Solver } from "./solver";
 
 // TODO: load from API?
 const board = [
@@ -19,8 +24,6 @@ const board = [
   [0, 8, 0, 2, 0, 0, 0, 4, 0],
   [6, 0, 0, 0, 7, 8, 0, 0, 2]
 ];
-
-const DIGITS = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 
 enum SettingId {
   AUTO_FILL_PENCIL_MARKS,
@@ -72,43 +75,48 @@ interface SettingsGroup {
   settings: Array<Setting>;
 }
 
-enum ActionType {
-  ACTION_GROUP,
-  CLEAR_VALUE,
-  SET_VALUE,
-  SET_PENCIL_MARKS
-}
-
-interface Action {
-  type: ActionType;
-
-  row: number;
-  col: number;
-  cell: Element;
-
-  value?: number | Array<number>;
-
-  actions?: Array<Action>;
-}
-
 @Component({
   selector: "app",
   templateUrl: "./app.component.html",
   styleUrls: ["./app.component.css"],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class AppComponent {
+export class AppComponent implements AfterViewInit {
   private root: Element;
   private board: Array<Array<number>> = board;
+  private solver: Solver = new Solver();
   private pencilMarks: Array<Array<Array<number>>>;
   private settingsGroups: Array<SettingsGroup> = settingsGroups;
   private digits: Array<number> = DIGITS;
   private actions: Array<Action> = [];
   private poppedActions: Array<Action> = [];
+  private haveNumbersBeenFilled: boolean = false;
 
-  constructor() {
+  constructor(private cd: ChangeDetectorRef) {
     this.pencilMarks = filledArray().map(_ => filledArray().map(_ => []));
     this.root = document.querySelector("app");
+  }
+
+  ngAfterViewInit() {
+    this.cd.detach();
+
+    this.solveFull();
+  }
+
+  solveFull() {
+    while (true) {
+      const action = this.solver.getNextAction({
+        board: this.board,
+        marks: this.pencilMarks
+      });
+      if (action === undefined) {
+        return;
+      }
+      this.pushAction(action);
+      if (this.actions.length === 2) {
+        throw "WTF!!!";
+      }
+    }
   }
 
   disableChangeDetectionTrackBy(_, __) {
@@ -142,7 +150,10 @@ export class AppComponent {
   }
 
   doAction(action: Action) {
-    const { cell, row, col } = action;
+    const { row, col } = action;
+    const cell =
+      action.cell ||
+      this.root.querySelector(`.cell.row-${action.row}.col-${action.col}`);
     switch (action.type) {
       case ActionType.SET_VALUE:
       case ActionType.CLEAR_VALUE:

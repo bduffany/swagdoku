@@ -3,6 +3,7 @@
 
   --grid-color: #222;
   --cell-color: white;
+  --given-cell-color: #eee;
   --text-color: black;
 }
 
@@ -27,7 +28,7 @@
 
 .cell {
   position: relative;
-  font-family: 'Consolas', monospace;
+  font-family: "Consolas", monospace;
 
   display: inline-flex;
   align-items: center;
@@ -39,7 +40,7 @@
   background-color: var(--cell-color);
   color: transparent;
   text-shadow: 0 0 0 var(--text-color);
- 
+
   border: none;
 
   text-align: center;
@@ -48,6 +49,10 @@
   user-select: none;
 
   z-index: 0;
+}
+
+.given {
+  background-color: var(--given-cell-color);
 }
 
 .pencil-marks.hidden,
@@ -61,12 +66,12 @@
   font-size: 11px;
 }
 
-
 .cell:not(:last-child) {
   margin-right: 1px;
 }
 
 .row {
+  display: flex;
   height: 48px;
 }
 
@@ -88,8 +93,7 @@
   transform: scale(1.1);
 
   border-radius: 4px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.41),
-              0 0 0 3px orange;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.41), 0 0 0 3px orange;
   outline: none;
   z-index: 1;
 

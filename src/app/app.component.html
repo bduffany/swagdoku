@@ -6,12 +6,9 @@
   <div class="grid">
     <div class="row" *ngFor="let row of board; index as i">
       <div
-        *ngFor="
-          let number of row;
-          index as j;
-          trackBy: disableChangeDetectionTrackBy
-        "
+        *ngFor="let number of row; index as j"
         class="cell row-{{ i }} col-{{ j }}"
+        [class.given]="number"
         [attr.data-row]="i"
         [attr.data-col]="j"
         tabindex="0"
