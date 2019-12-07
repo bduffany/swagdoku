@@ -4,7 +4,9 @@ import { range, simpleEnumValues } from "./utils";
 import { BoardState } from "./state";
 
 export enum StrategyId {
-  FILL_NUMBERS
+  FILL_NUMBERS,
+  NAKED_SINGLE,
+  LOCKED_CANDIDATE
 }
 
 type Strategy = (state: BoardState) => Action | undefined;
@@ -42,7 +44,10 @@ interface StrategyIndex {
 }
 
 const STRATEGY_IMPLS: StrategyIndex = {
-  [StrategyId.FILL_NUMBERS]: ({ board, marks }: BoardState): Action => {
+  [StrategyId.FILL_NUMBERS]: ({
+    board,
+    marks
+  }: BoardState): Action | undefined => {
     const actions = [];
     for (const i of INDICES) {
       for (const j of INDICES) {
@@ -69,7 +74,26 @@ const STRATEGY_IMPLS: StrategyIndex = {
       }
     }
     return { type: ActionType.ACTION_GROUP, actions };
+  },
+  [StrategyId.NAKED_SINGLE]: ({
+    board,
+    marks
+  }: BoardState): Action | undefined => {
+    for (const row of INDICES) {
+      for (const col of INDICES) {
+        if (marks[row][col].length === 1) {
+          const [mark] = marks[row][col];
+          return { type: ActionType.SET_VALUE, row, col, value: mark };
+        }
+      }
+    }
   }
+  /* TEMPLATE:
+  [StrategyId.FOO]: ({
+    board,
+    marks
+  }: BoardState): Action | undefined => {};
+  */
 };
 
 export class Solver {
