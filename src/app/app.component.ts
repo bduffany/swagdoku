@@ -115,7 +115,15 @@ export class AppComponent implements AfterViewInit {
     this.setHighlightedDigit(0);
   }
 
-  setHighlightedDigit(value: number) {
+  setHighlightedDigit(value: number = undefined) {
+    if (value === undefined) {
+      const focusedControl = document.querySelector(".digit-control:focus");
+      if (!focusedControl) {
+        value = 0;
+      } else {
+        value = Number(focusedControl.textContent);
+      }
+    }
     for (const digit of DIGITS) {
       const pencilMarks = document.querySelectorAll(`.pencil-mark-${digit}`);
       for (const pencilMark of Array.from(pencilMarks)) {
@@ -128,7 +136,15 @@ export class AppComponent implements AfterViewInit {
           pencilMark.classList.remove("highlighted");
         }
       }
-      const cells = document.querySelector(".cell.value");
+      const cells = document.querySelectorAll(".cell");
+      for (const cell of Array.from(cells)) {
+        const valueElement = cell.querySelector(".value");
+        if (valueElement.textContent.trim() === String(value)) {
+          valueElement.classList.add("highlight");
+        } else {
+          valueElement.classList.remove("highlight");
+        }
+      }
     }
   }
 
@@ -142,7 +158,7 @@ export class AppComponent implements AfterViewInit {
         return;
       }
       this.pushAction(action);
-      await delay(1000);
+      await delay(500);
     }
   }
 
@@ -161,6 +177,7 @@ export class AppComponent implements AfterViewInit {
     } else {
       this.doAction(action);
     }
+    this.setHighlightedDigit();
   }
 
   popAction() {

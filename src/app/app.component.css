@@ -5,6 +5,8 @@
   --cell-color: white;
   --given-cell-color: #eee;
   --text-color: black;
+  --highlighted-value-text-color: white;
+  --highlighted-value-background-color: orange;
   --highlighted-pencil-mark-background-color: orange;
   --highlighted-pencil-mark-text-color: white;
 }
@@ -70,6 +72,20 @@
   user-select: none;
 
   z-index: 0;
+}
+
+.value {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.value.highlight {
+  border-radius: 20px;
+  color: var(--highlighted-value-text-color);
+  background-color: var(--highlighted-value-background-color);
 }
 
 .given {

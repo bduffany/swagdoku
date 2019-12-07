@@ -6,6 +6,7 @@ import { BoardState } from "./state";
 export enum StrategyId {
   FILL_NUMBERS,
   NAKED_SINGLE,
+  HIDDEN_SINGLE,
   LOCKED_CANDIDATE
 }
 
@@ -125,7 +126,64 @@ const STRATEGY_IMPLS: StrategyIndex = {
       }
     }
   },
-  // TODO: HIDDEN_SINGLE
+  [StrategyId.HIDDEN_SINGLE]: ({
+    board,
+    marks
+  }: BoardState): Action | undefined => {
+    for (const boxRow of range(3)) {
+      for (const boxCol of range(3)) {
+        for (const digit of DIGITS) {
+          const pencilMarkCount = getBox(boxRow, boxCol, marks).filter(marks =>
+            marks.includes(digit)
+          ).length;
+          if (pencilMarkCount === 1) {
+            for (const [row, col] of boxRowColumns(boxRow, boxCol)) {
+              if (marks[row][col].includes(digit)) {
+                return {
+                  type: ActionType.SET_VALUE,
+                  row,
+                  col,
+                  value: digit
+                };
+              }
+            }
+          }
+        }
+      }
+    }
+    for (const row of INDICES) {
+      for (const digit of DIGITS) {
+        const pencilMarkCount = marks[row].filter(marks =>
+          marks.includes(digit)
+        ).length;
+        if (pencilMarkCount === 1) {
+          const [col] = INDICES.filter(i => marks[row][i].includes(digit));
+          return {
+            type: ActionType.SET_VALUE,
+            row,
+            col,
+            value: digit
+          };
+        }
+      }
+    }
+    for (const col of INDICES) {
+      for (const digit of DIGITS) {
+        const column = getCol(col, marks);
+        const pencilMarkCount = column.filter(marks => marks.includes(digit))
+          .length;
+        if (pencilMarkCount === 1) {
+          const [row] = INDICES.filter(i => column[i].includes(digit));
+          return {
+            type: ActionType.SET_VALUE,
+            row,
+            col,
+            value: digit
+          };
+        }
+      }
+    }
+  },
   [StrategyId.LOCKED_CANDIDATE]: ({
     board,
     marks
