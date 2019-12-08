@@ -1,13 +1,22 @@
 import { Action, ActionType } from "./action";
 import { INDICES, DIGITS } from "./constants";
-import { range, relativeRange, simpleEnumValues } from "./utils";
+import {
+  range,
+  relativeRange,
+  simpleEnumValues,
+  allPairs,
+  pairEquals
+} from "./utils";
 import { BoardState } from "./state";
 
 export enum StrategyId {
   FILL_NUMBERS,
   NAKED_SINGLE,
   HIDDEN_SINGLE,
-  LOCKED_CANDIDATE
+  // NAKED_PAIR,
+  // NAKED_TRIPLE,
+  LOCKED_CANDIDATE,
+  X_WING
 }
 
 type Strategy = (state: BoardState) => Action | undefined;
@@ -59,6 +68,18 @@ function getCol<T>(j: number, array: Array<Array<T>>): Array<T> {
   return col;
 }
 
+function transpose<T>(array: Array<Array<T>>): Array<Array<T>> {
+  return [...range(array.length)].map(i => getCol(i, array));
+}
+
+function transposeAction<T>(action: Action | undefined) {
+  if (action === undefined) return action;
+  if (action.actions !== undefined) {
+    return { ...action, actions: action.actions.map(transposeAction) };
+  }
+  return { ...action, row: action.col, col: action.row };
+}
+
 function eliminate(digit: number, candidates: Array<number>): Array<number> {
   return candidates.filter(candidate => candidate !== digit);
 }
@@ -77,8 +98,34 @@ function colIndicesExcludingBox(boxCol: number) {
   return rowIndicesExcludingBox(boxCol);
 }
 
+function indicesMatching<T>(
+  predicate: (T) => boolean,
+  array: Array<T>
+): Array<number> {
+  return [...range(array.length)].filter(key => predicate(array[key]));
+}
+
+function indicesContainingCandidate(
+  candidate: number,
+  array: Array<Array<number>>
+): Array<number> {
+  return INDICES.filter(i => array[i].includes(candidate));
+}
+
 interface StrategyIndex {
   [key: number]: Strategy;
+}
+
+function transposableStrategy(strategy: Strategy): Strategy {
+  return ({ board, marks }: BoardState) => {
+    const action = strategy({ board, marks });
+    if (action !== undefined) return action;
+    const transposedAction = strategy({
+      board: transpose(board),
+      marks: transpose(marks)
+    });
+    return transposeAction(transposedAction);
+  };
 }
 
 const STRATEGY_IMPLS: StrategyIndex = {
@@ -237,7 +284,53 @@ const STRATEGY_IMPLS: StrategyIndex = {
       }
     }
     return undefined;
-  }
+  },
+  [StrategyId.X_WING]: transposableStrategy(({ board, marks }: BoardState):
+    | Action
+    | undefined => {
+    for (const digit of DIGITS) {
+      const candidateRowsAndColPairs: Array<[number, [number, number]]> = [];
+      for (const row of INDICES) {
+        if (board[row].includes(digit)) continue;
+        const cols = indicesContainingCandidate(digit, marks[row]);
+        if (cols.length === 2) {
+          candidateRowsAndColPairs.push([row, cols as [number, number]]);
+        }
+      }
+      for (const [[row1, colPair1], [row2, colPair2]] of allPairs(
+        candidateRowsAndColPairs
+      )) {
+        if (!pairEquals(colPair1, colPair2)) continue;
+        // Found potential X-Wing. See if anything is eliminated.
+        const rowColsToEliminate: Array<[number, number]> = [];
+        for (const col of colPair1) {
+          const column = getCol(col, marks);
+          const rowsToEliminate = indicesContainingCandidate(
+            digit,
+            column
+          ).filter(row => ![row1, row2].includes(row));
+          if (rowsToEliminate.length > 0) {
+            rowsToEliminate
+              .map(row => [row, col] as [number, number])
+              .forEach(rowCol => rowColsToEliminate.push(rowCol));
+          }
+        }
+        if (rowColsToEliminate.length > 0) {
+          return {
+            type: ActionType.ACTION_GROUP,
+            actions: rowColsToEliminate.map(([row, col]) => {
+              return {
+                type: ActionType.SET_PENCIL_MARKS,
+                row,
+                col,
+                value: eliminate(digit, marks[row][col])
+              };
+            })
+          };
+        }
+      }
+    }
+  })
 
   /* TEMPLATE:
   [StrategyId.FOO]: ({

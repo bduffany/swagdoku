@@ -12,19 +12,35 @@ import { Solver } from "./solver";
 import { delay, range, relativeRange } from "./utils";
 
 // TODO: load from API?
-const board = [
-  [1, 0, 0, 4, 2, 0, 0, 0, 9],
-  [0, 6, 0, 0, 0, 3, 0, 5, 0],
-  [0, 0, 3, 0, 0, 0, 0, 0, 0],
+// Hard puzzle from websudoku.com
+// const board = [
+//   [1, 0, 0, 4, 2, 0, 0, 0, 9],
+//   [0, 6, 0, 0, 0, 3, 0, 5, 0],
+//   [0, 0, 3, 0, 0, 0, 0, 0, 0],
 
-  [0, 0, 6, 7, 8, 0, 0, 0, 0],
-  [7, 0, 8, 0, 5, 0, 1, 0, 4],
-  [0, 0, 0, 0, 3, 1, 6, 0, 0],
+//   [0, 0, 6, 7, 8, 0, 0, 0, 0],
+//   [7, 0, 8, 0, 5, 0, 1, 0, 4],
+//   [0, 0, 0, 0, 3, 1, 6, 0, 0],
 
-  [0, 0, 0, 0, 0, 0, 3, 0, 0],
-  [0, 8, 0, 2, 0, 0, 0, 4, 0],
-  [6, 0, 0, 0, 7, 8, 0, 0, 2]
-];
+//   [0, 0, 0, 0, 0, 0, 3, 0, 0],
+//   [0, 8, 0, 2, 0, 0, 0, 4, 0],
+//   [6, 0, 0, 0, 7, 8, 0, 0, 2]
+// ];
+
+const evil1 =
+  "540300000000080107000026005035000004020000070800000260300840000204070000000002089";
+
+function parseBoard(serializedBoard: string): Array<Array<number>> {
+  const board = [...range(9)].map(_ => [...range(9)]);
+  for (const row of INDICES) {
+    for (const col of INDICES) {
+      board[row][col] = Number(serializedBoard[row * 9 + col]);
+    }
+  }
+  return board;
+}
+
+const board = parseBoard(evil1);
 
 enum SettingId {
   AUTO_FILL_PENCIL_MARKS,

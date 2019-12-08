@@ -25,3 +25,27 @@ export function simpleEnumValues(enumClass) {
 export function delay(timeMs: number): Promise<void> {
   return new Promise(accept => setTimeout(accept, timeMs));
 }
+
+export function setEquals<T>(as: Set<T>, bs: Set<T>) {
+  if (as.size !== bs.size) {
+    return false;
+  }
+  for (var a of as) {
+    if (!bs.has(a)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+export function pairEquals<T, U>(a: [T, U], b: [T, U]) {
+  return a[0] === b[0] && a[1] === b[1];
+}
+
+export function* allPairs<T>(array: Array<T>): Iterable<[T, T]> {
+  for (const i of range(array.length)) {
+    for (const j of range(i + 1, array.length)) {
+      yield [array[i], array[j]];
+    }
+  }
+}
