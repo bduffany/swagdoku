@@ -123,7 +123,6 @@ export class AppComponent implements AfterViewInit {
   clickDigitControl(event: MouseEvent) {
     const clickedDigitElement = event.target as Element;
     const digit = Number(clickedDigitElement.textContent);
-    console.log(`Clicked ${digit}`);
     this.setHighlightedDigit(digit);
   }
 

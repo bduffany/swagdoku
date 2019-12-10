@@ -5,29 +5,82 @@ import {
   relativeRange,
   simpleEnumValues,
   allPairs,
-  pairEquals
+  pairEquals,
+  allCombinationsOfSize,
+  flatten,
+  intersectionOf
 } from "./utils";
-import { BoardState } from "./state";
+import { BoardState, Board, PencilMarks } from "./state";
 
 export enum StrategyId {
   FILL_NUMBERS,
   NAKED_SINGLE,
   HIDDEN_SINGLE,
-  // NAKED_PAIR,
-  // NAKED_TRIPLE,
   LOCKED_CANDIDATE,
+  NAKED_PAIR,
+  NAKED_TRIPLE,
+  NAKED_QUADRUPLE,
+  // HIDDEN_PAIR,
   X_WING
+}
+
+class CoordinateSet {
+  private hashes: Set<number>;
+
+  constructor(coords: Iterable<BoardCoordinates>, { hashes = undefined } = {}) {
+    if (hashes) {
+      this.hashes = hashes;
+    } else {
+      this.hashes = new Set([...coords].map(hashCoords));
+    }
+  }
+
+  static intersectAll(coordLists: Iterable<CoordinateSet>): CoordinateSet {
+    const [first, ...rest] = coordLists;
+    if (first === undefined) {
+      return new CoordinateSet([]);
+    }
+    let acc = first;
+    for (const value of rest) {
+      acc = acc.intersectionWith(value);
+    }
+    return acc;
+  }
+
+  intersectionWith(other: CoordinateSet) {
+    return new CoordinateSet(undefined, {
+      hashes: intersectionOf(this.hashes, other.hashes)
+    });
+  }
+
+  toArray(): BoardCoordinates[] {
+    return [...this.hashes].map(unhashCoords);
+  }
 }
 
 type Strategy = (state: BoardState) => Action | undefined;
 
+type BoardCoordinates = [number, number];
+type HouseCoordinates = Array<BoardCoordinates>;
+
+function getBoxRowBoxCol(row: number, col: number): BoardCoordinates {
+  return [Math.floor(row / 3), Math.floor(col / 3)];
+}
+
+export function getRowColsOfContainingBox(
+  row: number,
+  col: number
+): Iterable<BoardCoordinates> {
+  const [boxRow, boxCol] = getBoxRowBoxCol(row, col);
+  return boxRowColumns(boxRow, boxCol);
+}
+
 function getBoxByRowCol<T>(
-  i: number,
-  j: number,
+  row: number,
+  col: number,
   array: Array<Array<T>>
 ): Array<T> {
-  const boxRow = Math.floor(i / 3);
-  const boxCol = Math.floor(j / 3);
+  const [boxRow, boxCol] = getBoxRowBoxCol(row, col);
   return getBox(boxRow, boxCol, array);
 }
 
@@ -48,7 +101,7 @@ function getBox<T>(
 function* boxRowColumns(
   boxRow: number,
   boxCol: number
-): Iterable<Array<number>> {
+): Iterable<BoardCoordinates> {
   for (const row of relativeRange(boxRow * 3, 3)) {
     for (const col of relativeRange(boxCol * 3, 3)) {
       yield [row, col];
@@ -56,22 +109,27 @@ function* boxRowColumns(
   }
 }
 
-function getRow<T>(i: number, array: Array<Array<T>>): Array<T> {
-  return array[i];
+function getRow<T>(row: number, array: Array<Array<T>>): Array<T> {
+  return array[row];
 }
 
-function getCol<T>(j: number, array: Array<Array<T>>): Array<T> {
-  const col = [];
+function getCol<T>(col: number, array: Array<Array<T>>): Array<T> {
+  const values = [];
   for (const row of INDICES) {
-    col.push(array[row][j]);
+    values.push(array[row][col]);
   }
-  return col;
+  return values;
 }
 
 function transpose<T>(array: Array<Array<T>>): Array<Array<T>> {
-  return [...range(array.length)].map(i => getCol(i, array));
+  return [...range(array.length)].map(col => getCol(col, array));
 }
 
+/**
+ * Given an action that only works in a single axis (either rows or cols but not
+ * both), returns a new action that works on both rows and cols.
+ * @param action
+ */
 function transposeAction<T>(action: Action | undefined) {
   if (action === undefined) return action;
   if (action.actions !== undefined) {
@@ -84,11 +142,16 @@ function eliminate(digit: number, candidates: Array<number>): Array<number> {
   return candidates.filter(candidate => candidate !== digit);
 }
 
+function eliminateAllOf(
+  digits: Set<number>,
+  candidates: Array<number>
+): Array<number> {
+  return candidates.filter(candidate => !digits.has(candidate));
+}
+
 function* rowIndicesExcludingBox(boxRow: number) {
   for (const i of INDICES) {
-    if (Math.floor(i / 3) === boxRow) {
-      continue;
-    }
+    if (Math.floor(i / 3) === boxRow) continue;
     yield i;
   }
 }
@@ -98,8 +161,129 @@ function colIndicesExcludingBox(boxCol: number) {
   return rowIndicesExcludingBox(boxCol);
 }
 
+export function hashCoords([row, col]: BoardCoordinates): number {
+  return row * 10 + col;
+}
+
+function unhashCoords(hash: number): BoardCoordinates {
+  return [Math.floor(hash / 10), hash % 10];
+}
+
+export function getPeers([row, col]: BoardCoordinates): CoordinateSet {
+  return new CoordinateSet(
+    [
+      // Box coords
+      ...getRowColsOfContainingBox(row, col),
+      // Row coords
+      ...INDICES.map(i => [i, col] as BoardCoordinates),
+      // Col coords
+      ...INDICES.map(i => [row, i] as BoardCoordinates)
+    ].filter(([peerRow, peerCol]) => !(peerRow === row && peerCol === col))
+  );
+}
+
+function* enumerateAllHouseCoordLists(): Iterable<Array<[number, number]>> {
+  // Rows
+  yield* INDICES.map(row => INDICES.map(col => [row, col]));
+  // Columns
+  yield* INDICES.map(col => INDICES.map(row => [row, col]));
+  // Boxes
+  for (const boxRow of range(3)) {
+    for (const boxCol of range(3)) {
+      yield [...boxRowColumns(boxRow, boxCol)];
+    }
+  }
+}
+
+const ALL_HOUSES_COORDINATES: Array<Array<[number, number]>> = [
+  ...enumerateAllHouseCoordLists()
+];
+
+function nakedSubset(size: number): Strategy {
+  return (state: BoardState): Action | undefined =>
+    tryFindAndEliminateCoverSetOfSize(size, state.marks);
+}
+
+/**
+ * @returns a pair of (numbers in the cover set, coordinates of the set)
+ */
+function tryFindAndEliminateCoverSetOfSize(
+  size: number,
+  marks: PencilMarks
+): Action | undefined {
+  for (const houseCoords of ALL_HOUSES_COORDINATES) {
+    if (
+      houseCoords.some(([row, col]) => row === 1 && col === 1) &&
+      new Set(houseCoords.map(([row, col]) => row)).size === 1 &&
+      size === 2
+    ) {
+      console.log("!");
+    }
+
+    const coverSet = findCoverSetInHouse(size, houseCoords, marks);
+    if (coverSet === undefined) {
+      continue;
+    }
+    const [values, coordList] = coverSet;
+
+    const peersToEliminate = getPeersOfAllOf(coordList)
+      .toArray()
+      .filter(([row, col]) => containsAnyOf(values, marks[row][col]));
+
+    if (peersToEliminate.length) {
+      return {
+        type: ActionType.ACTION_GROUP,
+        actions: peersToEliminate.map(([row, col]) => {
+          return {
+            type: ActionType.SET_PENCIL_MARKS,
+            row,
+            col,
+            value: eliminateAllOf(values, marks[row][col])
+          };
+        })
+      };
+    }
+  }
+  return undefined;
+}
+
+function containsAnyOf(values: Iterable<number>, candidates: Array<number>) {
+  return [...values].some(value => candidates.includes(value));
+}
+
+function findCoverSetInHouse(
+  size: number,
+  houseCoords: Array<[number, number]>,
+  marks: PencilMarks
+): [Set<number>, Array<BoardCoordinates>] | undefined {
+  // Cells with at least 0 and at most $size candidates.
+  const prunedCoords: Array<BoardCoordinates> = [];
+  for (const [row, col] of houseCoords) {
+    if (marks[row][col].length > 0 && marks[row][col].length <= size) {
+      prunedCoords.push([row, col]);
+    }
+  }
+  // Now try to find a combination of $size cells comprising
+  // at most $size unique candidates.
+  for (const combination of allCombinationsOfSize(size, prunedCoords)) {
+    // TODO: update TS dep to flat() support & remove cast
+    const coverSet = new Set(
+      flatten(combination.map(([row, col]) => marks[row][col]))
+    );
+    if (coverSet.size === size) {
+      return [coverSet, combination];
+    }
+  }
+}
+
+export function getPeersOfAllOf(
+  coordinates: Iterable<BoardCoordinates>
+): CoordinateSet {
+  return CoordinateSet.intersectAll([...coordinates].map(getPeers));
+}
+
 function indicesMatching<T>(
-  predicate: (T) => boolean,
+  predicate: (value: T) => boolean,
   array: Array<T>
 ): Array<number> {
   return [...range(array.length)].filter(key => predicate(array[key]));
@@ -280,11 +464,20 @@ const STRATEGY_IMPLS: StrategyIndex = {
               }
             }
           }
+          if (eliminations.length) {
+            return {
+              type: ActionType.ACTION_GROUP,
+              actions: eliminations
+            };
+          }
         }
       }
     }
     return undefined;
   },
+  [StrategyId.NAKED_PAIR]: nakedSubset(2),
+  [StrategyId.NAKED_TRIPLE]: nakedSubset(3),
+  [StrategyId.NAKED_QUADRUPLE]: nakedSubset(4),
   [StrategyId.X_WING]: transposableStrategy(({ board, marks }: BoardState):
     | Action
     | undefined => {
@@ -357,6 +550,7 @@ export class Solver {
         this.haveNumbersBeenFilled = true;
       }
       if (nextAction !== undefined) {
+        nextAction.strategyName = StrategyId[strategyId];
         return nextAction;
       }
     }

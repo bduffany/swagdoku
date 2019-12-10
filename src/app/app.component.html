@@ -26,7 +26,7 @@
   <div class="digit-controls">
     <button
       (focus)="clickDigitControl($event)"
-      (blur)="(unclickDigitControl)"
+      (blur)="unclickDigitControl()"
       class="digit-control"
       *ngFor="let digit of digits"
     >
@@ -35,6 +35,7 @@
   </div>
 </div>
 
+<!--
 <div class="settings-section">
   <div class="settings-group" *ngFor="let group of settingsGroups">
     <div class="settings-group-title">
@@ -59,3 +60,4 @@
     </div>
   </div>
 </div>
+-->
