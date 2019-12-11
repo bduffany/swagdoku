@@ -1,4 +1,4 @@
-import { Action, ActionType } from "./action";
+import { Action, ActionType, Highlight } from "./action";
 import { INDICES, DIGITS } from "./constants";
 import {
   range,
@@ -10,7 +10,7 @@ import {
   flatten,
   intersectionOf
 } from "./utils";
-import { BoardState, Board, PencilMarks } from "./state";
+import { BoardState, Board, PencilMarks, BoardCoordinates } from "./state";
 
 export enum StrategyId {
   FILL_NUMBERS,
@@ -59,9 +59,6 @@ class CoordinateSet {
 }
 
 type Strategy = (state: BoardState) => Action | undefined;
-
-type BoardCoordinates = [number, number];
-type HouseCoordinates = Array<BoardCoordinates>;
 
 function getBoxRowBoxCol(row: number, col: number): BoardCoordinates {
   return [Math.floor(row / 3), Math.floor(col / 3)];
@@ -125,17 +122,42 @@ function transpose<T>(array: Array<Array<T>>): Array<Array<T>> {
   return [...range(array.length)].map(col => getCol(col, array));
 }
 
+function transposeCoords([row, col]: BoardCoordinates): BoardCoordinates {
+  return [col, row];
+}
+
 /**
  * Given an action that only works in a single axis (either rows or cols but not
  * both), returns a new action that works on both rows and cols.
  * @param action
  */
-function transposeAction<T>(action: Action | undefined) {
+function transposeAction(action: Action | undefined): Action {
   if (action === undefined) return action;
   if (action.actions !== undefined) {
-    return { ...action, actions: action.actions.map(transposeAction) };
+    return {
+      ...action,
+      highlights: transposeHighlights(action.highlights),
+      actions: action.actions.map(transposeAction)
+    };
   }
-  return { ...action, row: action.col, col: action.row };
+  return {
+    ...action,
+    row: action.col,
+    col: action.row,
+    highlights: transposeHighlights(action.highlights)
+  };
+}
+
+function transposeHighlights(
+  highlights: Highlight[] | undefined
+): Highlight[] | undefined {
+  if (!highlights) return undefined;
+  return highlights.map(highlight => {
+    return {
+      ...highlight,
+      coordinates: transposeCoords(highlight.coordinates)
+    };
+  });
 }
 
 function eliminate(digit: number, candidates: Array<number>): Array<number> {
@@ -212,14 +234,6 @@ function tryFindAndEliminateCoverSetOfSize(
   marks: PencilMarks
 ): Action | undefined {
   for (const houseCoords of ALL_HOUSES_COORDINATES) {
-    if (
-      houseCoords.some(([row, col]) => row === 1 && col === 1) &&
-      new Set(houseCoords.map(([row, col]) => row)).size === 1 &&
-      size === 2
-    ) {
-      console.log("!");
-    }
-
     const coverSet = findCoverSetInHouse(size, houseCoords, marks);
     if (coverSet === undefined) {
       continue;
@@ -382,99 +396,71 @@ const STRATEGY_IMPLS: StrategyIndex = {
         }
       }
     }
-    for (const row of INDICES) {
-      for (const digit of DIGITS) {
-        const pencilMarkCount = marks[row].filter(marks =>
-          marks.includes(digit)
-        ).length;
-        if (pencilMarkCount === 1) {
-          const [col] = INDICES.filter(i => marks[row][i].includes(digit));
-          return {
-            type: ActionType.SET_VALUE,
-            row,
-            col,
-            value: digit
-          };
-        }
-      }
-    }
-    for (const col of INDICES) {
-      for (const digit of DIGITS) {
-        const column = getCol(col, marks);
-        const pencilMarkCount = column.filter(marks => marks.includes(digit))
-          .length;
-        if (pencilMarkCount === 1) {
-          const [row] = INDICES.filter(i => column[i].includes(digit));
-          return {
-            type: ActionType.SET_VALUE,
-            row,
-            col,
-            value: digit
-          };
-        }
-      }
-    }
-  },
-  [StrategyId.LOCKED_CANDIDATE]: ({
-    board,
-    marks
-  }: BoardState): Action | undefined => {
-    for (const boxRow of range(3)) {
-      for (const boxCol of range(3)) {
-        const boxValues = getBox(boxRow, boxCol, board);
+
+    const rowStrategy: Strategy = ({ board, marks }) => {
+      for (const row of INDICES) {
         for (const digit of DIGITS) {
-          if (boxValues.includes(digit)) continue;
-
-          // Check if digit is locked to a single row or col.
-          const candidateMarkRows = new Set<number>();
-          const candidateMarkCols = new Set<number>();
-
-          for (const [row, col] of boxRowColumns(boxRow, boxCol)) {
-            if (marks[row][col].includes(digit)) {
-              candidateMarkRows.add(row);
-              candidateMarkCols.add(col);
-            }
-          }
-
-          const eliminations = [];
-          if (candidateMarkRows.size === 1) {
-            const [row] = candidateMarkRows;
-            for (const col of colIndicesExcludingBox(boxCol)) {
-              const marksToEliminateFrom = marks[row][col];
-              if (marksToEliminateFrom.includes(digit)) {
-                eliminations.push({
-                  type: ActionType.SET_PENCIL_MARKS,
-                  value: eliminate(digit, marksToEliminateFrom),
-                  row,
-                  col
-                });
-              }
-            }
-          } else if (candidateMarkCols.size === 1) {
-            const [col] = candidateMarkRows;
-            for (const row of rowIndicesExcludingBox(boxRow)) {
-              const marksToEliminateFrom = marks[row][col];
-              if (marksToEliminateFrom.includes(digit)) {
-                eliminations.push({
-                  type: ActionType.SET_PENCIL_MARKS,
-                  value: eliminate(digit, marksToEliminateFrom),
-                  row,
-                  col
-                });
-              }
-            }
-          }
-          if (eliminations.length) {
+          const pencilMarkCount = marks[row].filter(marks =>
+            marks.includes(digit)
+          ).length;
+          if (pencilMarkCount === 1) {
+            const [col] = INDICES.filter(i => marks[row][i].includes(digit));
             return {
-              type: ActionType.ACTION_GROUP,
-              actions: eliminations
+              type: ActionType.SET_VALUE,
+              row,
+              col,
+              value: digit
             };
           }
         }
       }
-    }
-    return undefined;
+    };
+
+    return transposableStrategy(rowStrategy)({ board, marks });
   },
+  [StrategyId.LOCKED_CANDIDATE]: transposableStrategy(
+    ({ board, marks }: BoardState): Action | undefined => {
+      for (const boxRow of range(3)) {
+        for (const boxCol of range(3)) {
+          const boxValues = getBox(boxRow, boxCol, board);
+          for (const digit of DIGITS) {
+            if (boxValues.includes(digit)) continue;
+
+            // Check if digit is locked to a single row.
+            const candidateMarkRows = new Set<number>();
+
+            for (const [row, col] of boxRowColumns(boxRow, boxCol)) {
+              if (marks[row][col].includes(digit)) {
+                candidateMarkRows.add(row);
+              }
+            }
+            const eliminations = [];
+            if (candidateMarkRows.size === 1) {
+              const [row] = candidateMarkRows;
+              for (const col of colIndicesExcludingBox(boxCol)) {
+                const marksToEliminateFrom = marks[row][col];
+                if (marksToEliminateFrom.includes(digit)) {
+                  eliminations.push({
+                    type: ActionType.SET_PENCIL_MARKS,
+                    value: eliminate(digit, marksToEliminateFrom),
+                    row,
+                    col
+                  });
+                }
+              }
+            }
+            if (eliminations.length) {
+              return {
+                type: ActionType.ACTION_GROUP,
+                actions: eliminations
+              };
+            }
+          }
+        }
+      }
+      return undefined;
+    }
+  ),
   [StrategyId.NAKED_PAIR]: nakedSubset(2),
   [StrategyId.NAKED_TRIPLE]: nakedSubset(3),
   [StrategyId.NAKED_QUADRUPLE]: nakedSubset(4),

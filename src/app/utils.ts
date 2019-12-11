@@ -1,3 +1,7 @@
+export function filterOut<T>(value: T, array: T[]): T[] {
+  return array.filter(v => v !== value);
+}
+
 export function* range(
   lowerOrUpper: number = 0,
   upper: number | undefined = undefined

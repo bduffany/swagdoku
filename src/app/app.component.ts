@@ -6,10 +6,11 @@ import {
   AfterViewInit
 } from "@angular/core";
 
-import { Action, ActionType } from "./action";
+import { Action, ActionType, Highlight, updateState } from "./action";
 import { DIGITS, INDICES } from "./constants";
-import { Solver } from "./solver";
-import { delay, range, relativeRange } from "./utils";
+import { Solver, getPeers } from "./solver";
+import { delay, range, relativeRange, filterOut } from "./utils";
+import { BoardState, BoardCoordinates } from "./state";
 
 // TODO: load from API?
 // Hard puzzle from websudoku.com
@@ -28,7 +29,10 @@ import { delay, range, relativeRange } from "./utils";
 // ];
 
 const evil1 =
-  "540300000000080107000026005035000004020000070800000260300840000204070000000002089";
+  "040000068065003100000100000000050706003908200507060000000009000004800620280000090";
+
+// const evil2 =
+//  "540300000000080107000026005035000004020000070800000260300840000204070000000002089";
 
 function parseBoard(serializedBoard: string): Array<Array<number>> {
   const board = [...range(9)].map(_ => [...range(9)]);
@@ -146,9 +150,9 @@ export class AppComponent implements AfterViewInit {
           pencilMark.textContent === String(value) &&
           !pencilMark.classList.contains("hidden")
         ) {
-          pencilMark.classList.add("highlighted");
+          pencilMark.classList.add("highlight");
         } else {
-          pencilMark.classList.remove("highlighted");
+          pencilMark.classList.remove("highlight");
         }
       }
       const cells = document.querySelectorAll(".cell");
@@ -172,90 +176,114 @@ export class AppComponent implements AfterViewInit {
       if (action === undefined) {
         return;
       }
-      this.pushAction(action);
-      await delay(500);
+      await this.pushAction(action);
     }
   }
 
-  disableChangeDetectionTrackBy(_, __) {
-    return false;
-  }
-
-  pushAction(action: Action) {
+  async pushAction(action: Action) {
     this.poppedActions = [];
     this.actions.push(action);
 
-    if (action.type === ActionType.ACTION_GROUP) {
-      for (const child of action.actions) {
-        this.doAction(child);
-      }
+    let state: BoardState = naiveDeepCopy({
+      board: this.board,
+      marks: this.pencilMarks
+    });
+    updateState(action, state);
+    if (action.strategyName) {
+      await this.visualizeChanges(action, state);
     } else {
-      this.doAction(action);
+      this.clearHighlights();
     }
-    this.setHighlightedDigit();
+    this.board = state.board;
+    this.pencilMarks = state.marks;
+
+    this.renderState();
   }
 
-  popAction() {
-    const action = this.actions.pop();
-    this.poppedActions.push(action);
-
-    if (action.type === ActionType.ACTION_GROUP) {
-      for (const child of action.actions) {
-        this.undoAction(child);
-      }
-    } else {
-      this.undoAction(action);
-    }
-  }
-
-  getCell(row, col) {
-    return this.root.querySelector(`.cell.row-${row}.col-${col}`);
-  }
-
-  doAction(action: Action) {
-    const { row, col } = action;
-    const cell = action.cell || this.getCell(row, col);
-    switch (action.type) {
-      case ActionType.SET_VALUE:
-      case ActionType.CLEAR_VALUE:
-        const value = (action.value as number) || 0;
-        this.board[row][col] = value;
-        this.pencilMarks[row][col] = [];
-        this.renderValue(cell, value);
-        if (value) {
-          this.eliminatePencilMarks(row, col, value);
+  renderState() {
+    for (const i of INDICES) {
+      for (const j of INDICES) {
+        const cell = this.getCell(i, j);
+        if (this.board[i][j] || !this.pencilMarks[i][j]) {
+          this.renderValue(cell, this.board[i][j]);
+        } else {
+          this.renderPencilMarks(cell, this.pencilMarks[i][j]);
         }
-        break;
-      case ActionType.SET_PENCIL_MARKS:
-        const marks = (action.value as Array<number>).sort();
-        this.board[row][col] = 0;
-        this.pencilMarks[row][col] = marks;
-        this.renderPencilMarks(cell, marks);
-        break;
-    }
-  }
-
-  eliminatePencilMarks(row: number, col: number, digit: number) {
-    const boxRow = Math.floor(row / 3);
-    const boxCol = Math.floor(col / 3);
-    for (const row of relativeRange(boxRow * 3, 3)) {
-      for (const col of relativeRange(boxCol * 3, 3)) {
-        this.eliminatePencilMark(row, col, digit);
       }
     }
-    for (const row of INDICES) {
-      this.eliminatePencilMark(row, col, digit);
+  }
+
+  popAction() {}
+
+  async visualizeChanges(action: Action, { board, marks }: BoardState) {
+    const highlights: Highlight[] = [
+      ...(action.highlights || []),
+      ...(action.actions || []).flatMap(action => action.highlights || [])
+    ];
+    // Add implicit "eliminate" highlights
+    for (const i of INDICES) {
+      for (const j of INDICES) {
+        for (const oldMark of this.pencilMarks[i][j]) {
+          const removedMarks = [];
+          if (!marks[i][j].includes(oldMark) && board[i][j] === 0) {
+            removedMarks.push(oldMark);
+          }
+          if (removedMarks.length) {
+            highlights.push({
+              coordinates: [i, j],
+              marks: removedMarks,
+              type: "eliminate"
+            });
+          }
+          if (board[i][j] > 0 && this.board[i][j] === 0) {
+            highlights.push({
+              coordinates: [i, j],
+              marks: [board[i][j]],
+              type: "clue"
+            });
+          }
+        }
+      }
     }
-    for (const col of INDICES) {
-      this.eliminatePencilMark(row, col, digit);
+    this.clearHighlights();
+    this.applyHighlights(highlights);
+    await delay(100);
+    this.clearHighlights();
+  }
+
+  applyHighlights(highlights: Highlight[]) {
+    // TODO: highlight digits as well
+    for (const highlight of highlights) {
+      for (const mark of highlight.marks) {
+        const [row, col] = highlight.coordinates;
+        const markElement = this.root.querySelector(
+          `.row-${row}.col-${col} .pencil-mark-${mark}`
+        );
+        if (!markElement.classList.contains("hidden")) {
+          markElement.classList.add("highlight");
+          markElement.classList.add(`highlight-${highlight.type || "clue"}`);
+        }
+      }
     }
   }
 
-  eliminatePencilMark(row: number, col: number, digit: number) {
-    const marks = this.pencilMarks[row][col];
-    if (!marks.length || !marks.includes(digit)) return;
-    this.pencilMarks[row][col] = marks.filter(value => value != digit);
-    this.renderPencilMarks(this.getCell(row, col), this.pencilMarks[row][col]);
+  clearHighlights() {
+    const highlighted = this.root.querySelectorAll(".highlight");
+    for (const element of Array.from(highlighted)) {
+      const classes = [...element.classList];
+      for (const clazz of classes.filter(clazz =>
+        clazz.startsWith("highlight")
+      )) {
+        // Remove 'highlight'and 'highlight-*'classes
+        element.classList.remove(clazz);
+      }
+    }
+  }
+
+  async commitChanges(state: BoardState) {}
+
+  getCell(row: number, col: number): Element {
+    return this.root.querySelector(`.cell.row-${row}.col-${col}`);
   }
 
   undoAction(action) {
@@ -339,4 +367,8 @@ function hide(element: Element) {
 
 function show(element: Element) {
   element.classList.remove("hidden");
+}
+
+function naiveDeepCopy(object: any) {
+  return JSON.parse(JSON.stringify(object));
 }

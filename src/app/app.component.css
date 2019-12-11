@@ -9,6 +9,9 @@
   --highlighted-value-background-color: orange;
   --highlighted-pencil-mark-background-color: orange;
   --highlighted-pencil-mark-text-color: white;
+
+  --elimination-highlight-color: red;
+  --clue-highlight-color: blue;
 }
 
 .title {
@@ -108,10 +111,18 @@
   align-items: center;
 }
 
-.pencil-mark.highlighted {
+.pencil-mark.highlight {
   background-color: var(--highlighted-pencil-mark-background-color);
   color: var(--highlighted-pencil-mark-text-color);
   border-radius: 8px;
+}
+
+.pencil-mark.highlight.highlight-eliminate {
+  background-color: var(--elimination-highlight-color);
+}
+
+.pencil-mark.highlight.highlight-clue {
+  background-color: var(--clue-highlight-color);
 }
 
 .cell:not(:last-child) {
